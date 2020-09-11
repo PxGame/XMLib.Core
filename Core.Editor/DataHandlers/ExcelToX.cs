@@ -39,7 +39,7 @@ namespace XMLib.DataHandlers
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogException(new RuntimeException(ex, $"excel转换异常>{fileInfo}"));
+                        Debug.LogException(new Exception($"excel转换异常>{fileInfo}", ex));
                     }
                 }
             }
@@ -61,7 +61,7 @@ namespace XMLib.DataHandlers
                     }
                     catch (Exception ex)
                     {
-                        throw new RuntimeException(ex, $"sheet转换异常>sheet name:{sheet.Name}");
+                        throw new Exception($"sheet转换异常>sheet name:{sheet.Name}", ex);
                     }
                 }
             }
@@ -69,62 +69,99 @@ namespace XMLib.DataHandlers
 
         private void Export(ExcelWorksheet sheet, string outDir)
         {
-            string assemblyName = sheet.Cells[1, 1].Text;
-            string typeFullName = sheet.Cells[1, 2].Text;
+            string typeFullName = sheet.Cells[1, 1].Text;
 
-            string fullName = $"{typeFullName},{assemblyName}";
-            Type type = Type.GetType(fullName, false, true);
+            Type type = Type.GetType(typeFullName, false, true);
             if (type == null)
             {
-                throw new RuntimeException($"未找到 {typeFullName} 类型");
+                throw new Exception($"未找到 {typeFullName} 类型");
             }
-
-            Dictionary<int, FieldInfo> col2field = new Dictionary<int, FieldInfo>();
 
             int cols = sheet.Dimension.Columns;
             int rows = sheet.Dimension.Rows;
 
-            if (cols < 3)
+            if (cols < 2)
             {
-                throw new RuntimeException($"未发现 {type} 类型可用参数");
+                throw new Exception($"未发现 {type} 类型可用参数");
             }
 
-            for (int i = 1; i <= cols; i++)
+            List<Tuple<string, Type>> sheetInfos = new List<Tuple<string, Type>>();
+            List<List<object>> sheetObjs = new List<List<object>>();
+            List<object> items = new List<object>();
+
+            for (int j = 1; j <= cols; j++)
             {
-                string fieldName = sheet.Cells[3, i].Text;
-                FieldInfo fieldInfo = type.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
-                if (fieldInfo == null)
-                {
-                    throw new RuntimeException($"未在 {type} 类型中找到 {fieldName} 变量");
-                }
+                string cellTypeName = sheet.Cells[2, j].Text;
+                string cellName = sheet.Cells[3, j].Text;
+                Type cellType = Type.GetType(cellTypeName, false, true);
 
-                col2field.Add(i, fieldInfo);
+                sheetInfos.Add(new Tuple<string, Type>(cellName, cellType));
             }
-
-            List<object> objs = new List<object>();
 
             for (int i = 4; i <= rows; i++)
             {
-                object obj = Activator.CreateInstance(type);
-
+                List<object> rowObjs = new List<object>();
                 for (int j = 1; j <= cols; j++)
                 {
-                    FieldInfo fieldInfo = col2field[j];
-                    object fieldObj = sheet.Cells[i, j].Value;
+                    var cellInfo = sheetInfos[j - 1];
+                    object cellValue = sheet.Cells[i, j].Value;
 
-                    if (!ChangeType(ref fieldObj, fieldInfo.FieldType))
+                    if (!ChangeType(ref cellValue, cellInfo.Item2))
                     {//给默认值
-                        Debug.LogWarning($"{sheet}[{i},{j}] 转换到 {fieldInfo.FieldType} 失败, 使用默认值");
-                        fieldObj = fieldInfo.FieldType.IsValueType ? Activator.CreateInstance(fieldInfo.FieldType) : null;
+                        Debug.LogWarning($"{sheet}[{i},{j}] 转换到 {cellInfo.Item2} 失败, 使用默认值");
+                        cellValue = cellInfo.Item2.IsValueType ? Activator.CreateInstance(cellInfo.Item2) : null;
                     }
-
-                    fieldInfo.SetValue(obj, fieldObj);
+                    rowObjs.Add(cellValue);
                 }
+                sheetObjs.Add(rowObjs);
 
-                objs.Add(obj);
+                object item = CreateItem(type, sheetInfos, rowObjs);
+                items.Add(item);
             }
 
-            string fullPath = OnExportSheet(outDir, sheet.Name, type, objs);
+            OnExportSheet(outDir, sheet.Name, type, items, sheetInfos, sheetObjs);
+        }
+
+        private object CreateItem(Type type, List<Tuple<string, Type>> fieldInfos, List<object> objs)
+        {
+            object result = Activator.CreateInstance(type);
+            FieldInfo[] fields = type.GetFields();
+            Stack<FieldInfo> fieldDepth = new Stack<FieldInfo>();
+
+            foreach (var field in fields)
+            {
+                ImportFieldToItem(ref result, field, fieldDepth, fieldInfos, objs);
+            }
+
+            return result;
+        }
+
+        private void ImportFieldToItem(ref object target, FieldInfo childField, Stack<FieldInfo> fieldDepth, List<Tuple<string, Type>> fieldInfos, List<object> objs)
+        {
+            Type fieldType = childField.FieldType;
+
+            if (ExcelExporter.CheckType(fieldType))
+            {
+                object result = Activator.CreateInstance(fieldType);
+                var fields = fieldType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+                fieldDepth.Push(childField);
+                foreach (var field in fields)
+                {
+                    ImportFieldToItem(ref result, field, fieldDepth, fieldInfos, objs);
+                }
+                fieldDepth.Pop();
+                childField.SetValue(target, result);
+            }
+            else
+            {
+                string fieldName = ExcelExporter.PackName(childField, fieldDepth);
+                int index = fieldInfos.FindIndex(t => string.Compare(fieldName, t.Item1) == 0);
+                if (index >= 0 && index < objs.Count)
+                {
+                    object value = objs[index];
+                    childField.SetValue(target, value);
+                }
+            }
         }
 
         private bool ChangeType(ref object result, Type type)
@@ -159,6 +196,6 @@ namespace XMLib.DataHandlers
             return false;
         }
 
-        protected abstract string OnExportSheet(string outDir, string name, Type type, List<object> objs);
+        protected abstract void OnExportSheet(string outDir, string name, Type type, List<object> items, List<Tuple<string, Type>> sheetInfos, List<List<object>> sheetObjs);
     }
 }

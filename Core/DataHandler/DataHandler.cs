@@ -23,7 +23,7 @@ namespace XMLib.DataHandlers
         {
             string fileName = string.IsNullOrEmpty(childName)
                 ? type.Name
-                : $"{type.Name}.{childName}";
+                : $"{childName}.{type.Name}";
 
             return fileName;
         }

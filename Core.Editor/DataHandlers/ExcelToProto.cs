@@ -20,21 +20,19 @@ namespace XMLib.DataHandlers
     /// </summary>
     public class ExcelToProto : ExcelToX
     {
-        protected override string OnExportSheet(string outDir, string name, Type type, List<object> objs)
+        protected override void OnExportSheet(string outDir, string name, Type type, List<object> items, List<Tuple<string, Type>> sheetInfos, List<List<object>> sheetObjs)
         {
             string fullPath = Path.Combine(outDir, $"{name}.bytes");
             using (var steam = new MemoryStream())
             {
-                for (int i = 0; i < objs.Count; i++)
+                for (int i = 0; i < items.Count; i++)
                 {
-                    object obj = objs[i];
+                    object obj = items[i];
                     ProtoBuf.Serializer.NonGeneric.SerializeWithLengthPrefix(steam, obj, ProtoBuf.PrefixStyle.Base128, 1);
                 }
 
                 File.WriteAllBytes(fullPath, steam.ToArray());
             }
-
-            return fullPath;
         }
     }
 }

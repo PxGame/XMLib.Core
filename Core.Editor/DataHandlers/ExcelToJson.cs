@@ -19,13 +19,11 @@ namespace XMLib.DataHandlers
     /// </summary>
     public class ExcelToJson : ExcelToX
     {
-        protected override string OnExportSheet(string outDir, string name, Type type, List<object> objs)
+        protected override void OnExportSheet(string outDir, string name, Type type, List<object> items, List<Tuple<string, Type>> sheetInfos, List<List<object>> sheetObjs)
         {
             string fullPath = Path.Combine(outDir, $"{name}.json");
-            string json = JsonConvert.SerializeObject(objs);
+            string json = JsonConvert.SerializeObject(items);
             File.WriteAllText(fullPath, json);
-
-            return fullPath;
         }
     }
 }
