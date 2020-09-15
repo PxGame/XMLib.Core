@@ -25,6 +25,7 @@ namespace XMLib.DataHandlers
         {
             DirectoryInfo dirInfo = new DirectoryInfo(excelDir);
 
+            string logMsg = $"导出完成 {excelDir} => {outDir}\n";
             try
             {
                 foreach (var fileInfo in dirInfo.GetFiles())
@@ -36,6 +37,8 @@ namespace XMLib.DataHandlers
                     try
                     {
                         Export(fileInfo, outDir);
+
+                        logMsg += $"{fileInfo.Name}\n";
                     }
                     catch (Exception ex)
                     {
@@ -46,6 +49,7 @@ namespace XMLib.DataHandlers
             finally
             {
                 AssetDatabase.Refresh();
+                Debug.Log(logMsg);
             }
         }
 
