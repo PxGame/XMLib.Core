@@ -1,0 +1,16 @@
+{
+    "name": "com.peterxiang.xmlib.core",
+    "version": "1.0.0",
+    "displayName": "XMLib Core",
+    "description": "XMLib 核心库",
+    "unity": "2019.1",
+    "dependencies": {
+        "com.peterxiang.xmlib.common": "1.0.0"
+    },
+    "keywords": [],
+    "author": {
+        "name": "Peter Xiang",
+        "email": "565067150@qq.com",
+        "url": "https://github.com/PxGame"
+    }
+}
