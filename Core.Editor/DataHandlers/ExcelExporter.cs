@@ -59,14 +59,17 @@ namespace XMLib.DataHandlers
 
             string fullPathFormater = Path.Combine(dir, "{0}.xlsx");
             string fileName = t.Name;
-            string filefullPath = string.Format(fullPathFormater, fileName);
+            string fileFullPath = string.Format(fullPathFormater, fileName);
 
-            if (File.Exists(filefullPath))
+            var oldData = new List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>>();
+            if (File.Exists(fileFullPath))
             {
-                if (!EditorUtility.DisplayDialog("警告", $"文件已存在，是否继续生成以覆盖原有文件\n{filefullPath}", "是", "否"))
+                if (!EditorUtility.DisplayDialog("警告", $"文件已存在，是否继续生成以覆盖原有文件\n{fileFullPath}", "是", "否"))
                 {
                     return;
                 }
+
+                oldData = ReadExcel(fileFullPath);
             }
 
             using (var excel = new ExcelPackage())
@@ -94,20 +97,20 @@ namespace XMLib.DataHandlers
 
                 foreach (var field in fields)
                 {
-                    ExportTypeToSheet(field, ref index, excel.Workbook.Worksheets, fieldDepth);
+                    ExportTypeToSheet(field, ref index, excel.Workbook.Worksheets, fieldDepth, oldData);
                 }
 
-                excel.SaveAs(new FileInfo(filefullPath));
+                excel.SaveAs(new FileInfo(fileFullPath));
             }
 
-            Debug.Log($"导出 {filefullPath}");
+            Debug.Log($"导出 {fileFullPath}");
         }
 
-        private static void ExportTypeToSheet(FieldInfo target, ref int index, ExcelWorksheets worksheets, Stack<FieldInfo> fieldDepth)
+        private static void ExportTypeToSheet(FieldInfo target, ref int index, ExcelWorksheets worksheets, Stack<FieldInfo> fieldDepth, List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>> oldData)
         {
             Type fieldType = target.FieldType;
 
-            if (CheckType(fieldType))
+            if (HasChild(fieldType))
             {
                 DataContractAttribute attr = fieldType.GetCustomAttribute<DataContractAttribute>();
                 if (attr == null)
@@ -125,19 +128,46 @@ namespace XMLib.DataHandlers
                         return;
                     }
 
-                    ExportTypeToSheet(field, ref index, worksheets, fieldDepth);
+                    ExportTypeToSheet(field, ref index, worksheets, fieldDepth, oldData);
                 }
                 fieldDepth.Pop();
             }
             else
             {
                 string fieldName = PackName(target, fieldDepth);
+                string fieldTypeName = $"{fieldType.FullName},{fieldType.Assembly.GetName().Name}";
                 foreach (var sheet in worksheets)
                 {
-                    sheet.Cells[2, index].Value = $"{fieldType.FullName},{fieldType.Assembly.GetName().Name}";
+                    sheet.Cells[2, index].Value = fieldTypeName;
                     sheet.Cells[3, index].Value = fieldName;
                 }
+
+                ImportData(worksheets, index, fieldName, fieldType, oldData);
+
                 index++;
+            }
+        }
+
+        private static void ImportData(ExcelWorksheets sheets, int index, string fieldName, Type fieldType, List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>> oldData)
+        {
+            foreach (var sheet in sheets)
+            {
+                var sheetData = oldData.Find(t => string.Compare(t.Item1, sheet.Name) == 0);
+                if (sheetData == null)
+                {
+                    continue;
+                }
+
+                var data = sheetData.Item3.Find(t => string.Compare(t.Item2, fieldName) == 0 && t.Item3.ConvertToChecker(fieldType));
+                if (data == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < data.Item4.Count; i++)
+                {
+                    sheet.Cells[i + 4, index].Value = data.Item4[i];
+                }
             }
         }
 
@@ -158,7 +188,7 @@ namespace XMLib.DataHandlers
             return result;
         }
 
-        public static bool CheckType(Type fieldType)
+        public static bool HasChild(Type fieldType)
         {
             if (fieldType == typeof(string)
             || fieldType.IsEnum)
@@ -171,6 +201,90 @@ namespace XMLib.DataHandlers
                 return true;
             }
             return false;
+        }
+
+        public static List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>> ReadExcel(string filePath)
+        {
+            List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>> result;
+            try
+            {
+                using (var excel = new ExcelPackage(new FileInfo(filePath)))
+                {
+                    result = ReadExcel(excel);
+                }
+            }
+            catch (Exception ex)
+            {
+                result = new List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>>();
+                Debug.LogWarning($"ReadExcel {filePath} 读取异常\n{ex}");
+            }
+
+            return result;
+        }
+
+        public static List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>> ReadExcel(ExcelPackage excel)
+        {
+            var result = new List<Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>>();
+
+            try
+            {
+                foreach (var sheet in excel.Workbook.Worksheets)
+                {
+                    var sheetData = ReadSheet(sheet);
+                    result.Add(sheetData);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException(ex, $"ReadExcel {excel} 读取异常");
+            }
+
+            return result;
+        }
+
+        private static Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>> ReadSheet(ExcelWorksheet sheet)
+        {
+            Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>> result = null;
+            try
+            {
+                int colCnt = sheet.Dimension.Columns;
+                int rowCnt = sheet.Dimension.Rows;
+                string typeFullName = sheet.Cells[1, 1].Text;
+
+                string sheetName = sheet.Name;
+                Type sheetType = Type.GetType(typeFullName);
+
+                var sheetData = new List<Tuple<int, string, Type, List<object>>>();
+                for (int i = 1; i <= colCnt; i++)
+                {
+                    string fieldTypeName = sheet.Cells[2, i].Text;
+                    string fieldName = sheet.Cells[3, i].Text;
+                    Type fieldType = Type.GetType(fieldTypeName, false);
+                    if (fieldType == null)
+                    {
+                        continue;
+                    }
+
+                    sheetData.Add(new Tuple<int, string, Type, List<object>>(i, fieldName, fieldType, new List<object>()));
+                }
+
+                foreach (var item in sheetData)
+                {
+                    for (int i = 4; i <= rowCnt; i++)
+                    {
+                        object obj = sheet.Cells[i, item.Item1].Value.ConvertAutoTo(item.Item3);
+                        item.Item4.Add(obj);
+                    }
+                }
+
+                result = new Tuple<string, Type, List<Tuple<int, string, Type, List<object>>>>(sheetName, sheetType, sheetData);
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException(ex, $"ReadSheet {sheet} 读取异常");
+            }
+
+            return result;
         }
     }
 }

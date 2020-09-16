@@ -110,11 +110,7 @@ namespace XMLib.DataHandlers
                     var cellInfo = sheetInfos[j - 1];
                     object cellValue = sheet.Cells[i, j].Value;
 
-                    if (!ChangeType(ref cellValue, cellInfo.Item2))
-                    {//给默认值
-                        Debug.LogWarning($"{sheet}[{i},{j}] 转换到 {cellInfo.Item2} 失败, 使用默认值");
-                        cellValue = cellInfo.Item2.IsValueType ? Activator.CreateInstance(cellInfo.Item2) : null;
-                    }
+                    cellValue = cellValue.ConvertAutoTo(cellInfo.Item2);
                     rowObjs.Add(cellValue);
                 }
                 sheetObjs.Add(rowObjs);
@@ -144,7 +140,7 @@ namespace XMLib.DataHandlers
         {
             Type fieldType = childField.FieldType;
 
-            if (ExcelExporter.CheckType(fieldType))
+            if (ExcelExporter.HasChild(fieldType))
             {
                 object result = Activator.CreateInstance(fieldType);
                 var fields = fieldType.GetFields(BindingFlags.Public | BindingFlags.Instance);
@@ -166,38 +162,6 @@ namespace XMLib.DataHandlers
                     childField.SetValue(target, value);
                 }
             }
-        }
-
-        private bool ChangeType(ref object result, Type type)
-        {
-            try
-            {
-                if (null == result || type.IsInstanceOfType(result))
-                {
-                    return true;
-                }
-
-                if (type.IsEnum)
-                {
-                    result = Enum.Parse(type, (string)result);
-                    if (null != result)
-                    {
-                        return true;
-                    }
-                }
-
-                if (result is IConvertible
-                    && typeof(IConvertible).IsAssignableFrom(type))
-                {
-                    result = Convert.ChangeType(result, type);
-                    return true;
-                }
-            }
-            catch (Exception)
-            {//忽略异常
-            }
-
-            return false;
         }
 
         protected abstract void OnExportSheet(string outDir, string name, Type type, List<object> items, List<Tuple<string, Type>> sheetInfos, List<List<object>> sheetObjs);
