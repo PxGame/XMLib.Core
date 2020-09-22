@@ -144,14 +144,21 @@ namespace XMLib
             }
         }
 
-        private object InvokeHandler(EventHandler handler, params object[] args)
+        private void InvokeHandler(EventHandler handler, params object[] args)
         {
-            if (handler.matchingParams)
-            {
-                return container.Call(handler.target, handler.method, args);
+            if (handler.filter != null && !handler.filter(args))
+            {//判断
+                return;
             }
 
-            return handler.method.Invoke(handler.target, args);
+            if (handler.matchingParams)
+            {
+                container.Call(handler.target, handler.method, args);
+            }
+            else
+            {
+                handler.method.Invoke(handler.target, args);
+            }
         }
 
         private void ForgetGroup(object target)

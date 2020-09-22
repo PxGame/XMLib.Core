@@ -5,6 +5,7 @@
  * 创建时间: 2019/9/11 14:16:58
  */
 
+using System;
 using System.Reflection;
 
 namespace XMLib
@@ -19,6 +20,13 @@ namespace XMLib
         public MethodInfo method { get; private set; }
         public object target { get; private set; }
         public bool matchingParams { get; private set; }
+        public Func<object[], bool> filter { get; private set; }
+
+        public EventHandler SetFilter(Func<object[], bool> filter)
+        {
+            this.filter = filter;
+            return this;
+        }
 
         public static EventHandler Create(int eventType, object target, MethodInfo method, object group, bool matchingParams)
         {
