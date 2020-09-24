@@ -1,11 +1,11 @@
 {
     "name": "com.peterxiang.xmlib.core",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "displayName": "XMLib Core",
     "description": "XMLib 核心库",
     "unity": "2019.1",
     "dependencies": {
-        "com.peterxiang.xmlib.common": "1.0.0"
+        "com.peterxiang.xmlib.common": "1.0.1"
     },
     "keywords": [],
     "author": {
