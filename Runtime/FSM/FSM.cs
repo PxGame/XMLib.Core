@@ -22,6 +22,11 @@ namespace XMLib.FSM
         protected Type nextState { get; set; }
         protected bool hasNextState { get; set; }
 
+        public void AddState<S>(S state) where S : IFSMState<T>
+        {
+            Add(typeof(S), state);
+        }
+
         public void ChangeState(Type stateType)
         {
             if (stateType == currentState)
@@ -44,8 +49,8 @@ namespace XMLib.FSM
             if (currentState != null)
             {
                 this[currentState].Update(target, deltaTime);
+                CheckStateChange(target);
             }
-            CheckStateChange(target);
         }
 
         protected void CheckStateChange(T target)
