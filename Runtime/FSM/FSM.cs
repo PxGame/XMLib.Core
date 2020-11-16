@@ -27,6 +27,16 @@ namespace XMLib.FSM
             Add(typeof(S), state);
         }
 
+        public void RemoveState<S>() where S : IFSMState<T>
+        {
+            Type type = typeof(S);
+            Remove(type);
+
+            currentState = currentState != type ? currentState : null;
+            previousState = previousState != type ? previousState : null;
+            nextState = nextState != type ? nextState : null;
+        }
+
         public void ChangeState(Type stateType)
         {
             if (stateType == currentState)
