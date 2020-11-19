@@ -16,4 +16,12 @@ namespace XMLib
     {
         IEnumerator OnServiceInitialize();
     }
+
+    /// <summary>
+    /// IServiceInitialize
+    /// </summary>
+    public interface IServiceLateInitialize
+    {
+        IEnumerator OnServiceLateInitialize();
+    }
 }
