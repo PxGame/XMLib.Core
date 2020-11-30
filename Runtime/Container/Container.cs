@@ -19,7 +19,7 @@ namespace XMLib
     {
         private readonly List<Action<BindData, object>> afterResloving;
         private readonly Dictionary<string, string> aliases;
-        private readonly Dictionary<object, List<string>> aliasesReverse;
+        private readonly Dictionary<string, List<string>> aliasesReverse;
         private readonly Dictionary<string, BindData> bindings;
         private readonly Stack<string> buildStack;
         private readonly Dictionary<string, object> instances;
@@ -36,7 +36,7 @@ namespace XMLib
 
             bindings = new Dictionary<string, BindData>(prime);
             aliases = new Dictionary<string, string>(prime);
-            aliasesReverse = new Dictionary<object, List<string>>(prime);
+            aliasesReverse = new Dictionary<string, List<string>>(prime);
             instances = new Dictionary<string, object>(prime);
             instancesReverse = new Dictionary<object, string>(prime);
             instancesTiming = new List<string>(prime);
@@ -84,6 +84,26 @@ namespace XMLib
             }
             collection.Add(alias);
 
+            return this;
+        }
+
+        public Container RemoveAlias(string alias)
+        {
+            alias = FormatService(alias);
+
+            if (aliases.TryGetValue(alias, out string service))
+            {
+                aliasesReverse[service].Remove(alias);
+                aliases.Remove(alias);
+            }
+
+            return this;
+        }
+
+        public Container ResetAlias(string alias, string service)
+        {
+            RemoveAlias(alias);
+            Alias(alias, service);
             return this;
         }
 
@@ -392,6 +412,31 @@ namespace XMLib
             bind?.Unbind();
         }
 
+        public object CreateInstance(BindData bindData, Type serviceType, object[] userParams)
+        {
+            if (IsUnableType(serviceType))
+            {
+                return null;
+            }
+
+            userParams = GetConstructorsInjectParams(bindData, serviceType, userParams);
+
+            try
+            {
+                return CreateInstance(serviceType, userParams);
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException($"服务 [{bindData.service}] 实例创建异常>服务类型:{serviceType}\n{ex}");
+            }
+        }
+
+        public BindData GetBindFillable(string service)
+        {
+            BindData bindData;
+            return service != null && bindings.TryGetValue(service, out bindData) ? bindData : MakeEmptyBindData(service);
+        }
+
         internal static object Trigger(BindData bindData, object instance, List<Action<BindData, object>> collection)
         {
             if (collection == null)
@@ -530,25 +575,6 @@ namespace XMLib
                 || typeof(object) == baseParam.ParameterType;
         }
 
-        private object CreateInstance(BindData bindData, Type serviceType, object[] userParams)
-        {
-            if (IsUnableType(serviceType))
-            {
-                return null;
-            }
-
-            userParams = GetConstructorsInjectParams(bindData, serviceType, userParams);
-
-            try
-            {
-                return CreateInstance(serviceType, userParams);
-            }
-            catch (Exception ex)
-            {
-                throw new RuntimeException($"服务 [{bindData.service}] 实例创建异常>服务类型:{serviceType}\n{ex}");
-            }
-        }
-
         private object CreateInstance(Type serviceType, object[] userParams)
         {
             if (null == userParams || 0 >= userParams.Length)
@@ -570,12 +596,6 @@ namespace XMLib
         private string FormatService(string service)
         {
             return service.Trim();
-        }
-
-        private BindData GetBindFillable(string service)
-        {
-            BindData bindData;
-            return service != null && bindings.TryGetValue(service, out bindData) ? bindData : MakeEmptyBindData(service);
         }
 
         private object GetCompactInjectUserParams(ParameterInfo baseParam, ref object[] userParams)

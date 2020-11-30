@@ -49,6 +49,12 @@ namespace XMLib
             return this;
         }
 
+        public BindData ResetAlias<T>()
+        {
+            container.ResetAlias(container.Type2Service<T>(), service);
+            return this;
+        }
+
         public BindData Alias(Type aliasType)
         {
             container.Alias(container.Type2Service(aliasType), service);

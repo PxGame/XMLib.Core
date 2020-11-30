@@ -19,6 +19,16 @@ namespace XMLib
             return container.Alias(container.Type2Service(typeof(TAlias)), container.Type2Service(typeof(TService)));
         }
 
+        public static Container RemoveAlias<TAlias>(this Container container)
+        {
+            return container.RemoveAlias(container.Type2Service(typeof(TAlias)));
+        }
+
+        public static Container ResetAlias<TAlias, TService>(this Container container)
+        {
+            return container.ResetAlias(container.Type2Service(typeof(TAlias)), container.Type2Service(typeof(TService)));
+        }
+
         public static BindData Bind<T>(this Container container)
         {
             return container.Bind(container.Type2Service(typeof(T)), typeof(T), false);
@@ -261,6 +271,16 @@ namespace XMLib
         public static BindData Singleton<TService>(this Container container, Func<object> concrete)
         {
             return container.Bind(container.Type2Service(typeof(TService)), (c, p) => concrete.Invoke(), true);
+        }
+
+        public static object CreateInstance<T>(this Container container, Type realServiceType, object[] userParams)
+        {
+            return container.CreateInstance(container.GetBindFillable<T>(), realServiceType, userParams);
+        }
+
+        public static BindData GetBindFillable<T>(this Container container)
+        {
+            return container.GetBindFillable(container.Type2Service<T>());
         }
 
         public static string Type2Service<TService>(this Container container)
