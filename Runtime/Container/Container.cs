@@ -30,6 +30,8 @@ namespace XMLib
         private readonly HashSet<string> resolved;
         private readonly List<Action<BindData, object>> resolving;
 
+        private const BindingFlags propertyBindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
         public Container(int prime = 32)
         {
             prime = Math.Max(8, prime);
@@ -423,7 +425,11 @@ namespace XMLib
 
             try
             {
-                return CreateInstance(serviceType, userParams);
+                object result = CreateInstance(serviceType, userParams);
+
+                result = ResolveFieldInject(serviceType, result);
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -538,7 +544,7 @@ namespace XMLib
 
         private bool CanInject(Type type, object instance)
         {
-            return null == instance || type.IsInstanceOfType(instance);
+            return null != instance && type.IsInstanceOfType(instance);
         }
 
         private bool ChangeType(ref object result, Type type)
@@ -874,6 +880,33 @@ namespace XMLib
         private Func<Container, object[], object> WrapperTypeBuilder(string service, Type concrete)
         {
             return (container, userParams) => container.CreateInstance(GetBindFillable(service), concrete, userParams);
+        }
+
+        private object ResolveFieldInject(Type type, object obj)
+        {
+            PropertyInfo[] propertyInfos = type.GetProperties(propertyBindingFlags);
+            foreach (var info in propertyInfos)
+            {
+                ResolveFieldInject(info, obj);
+            }
+
+            return obj;
+        }
+
+        private void ResolveFieldInject(PropertyInfo target, object obj)
+        {
+            InjectObject injectObject = target.GetCustomAttribute<InjectObject>();
+            if (injectObject == null)
+            {
+                return;
+            }
+
+            object instance = null;
+            if (!MakeFromContextualService(Type2Service(target.PropertyType), target.PropertyType, out instance))
+            {
+                throw new RuntimeException($"处理属性注入异常>类型:{target.DeclaringType},注入属性名:{target.Name},属性类型:{target.PropertyType}");
+            }
+            target.SetValue(obj, instance);
         }
     }
 }
