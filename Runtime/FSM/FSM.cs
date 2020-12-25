@@ -13,31 +13,69 @@ namespace XMLib.FSM
     /// <summary>
     /// FSM
     /// </summary>
-    public class FSM<T> : Dictionary<Type, IFSMState<T>>, IFSM<T>
+    public class FSM<T> : IFSM<T>
     {
-        public Type currentState { get; protected set; }
+        public virtual Type currentState { get; protected set; }
 
-        public Type previousState { get; protected set; }
+        public virtual Type previousState { get; protected set; }
 
-        protected Type nextState { get; set; }
-        protected bool hasNextState { get; set; }
+        protected virtual Type nextState { get; set; }
+        protected virtual bool hasNextState { get; set; }
 
-        public void AddState<S>(S state) where S : IFSMState<T>
+        protected Dictionary<Type, IFSMState<T>> type2State = new Dictionary<Type, IFSMState<T>>();
+
+        protected List<Type> typeTmps = new List<Type>();
+
+        public virtual void AddState(IFSMState<T> state)
         {
-            Add(typeof(S), state);
+            type2State.Add(state.GetType(), state);
         }
 
-        public void RemoveState<S>() where S : IFSMState<T>
+        public void AddStates<S>(IEnumerable<S> states) where S : IFSMState<T>
         {
-            Type type = typeof(S);
-            Remove(type);
+            foreach (var state in states)
+            {
+                AddState(state);
+            }
+        }
 
+        public virtual void RemoveState(Type type)
+        {
+            type2State.Remove(type);
             currentState = currentState != type ? currentState : null;
             previousState = previousState != type ? previousState : null;
             nextState = nextState != type ? nextState : null;
         }
 
-        public void ChangeState(Type stateType)
+        public void RemoveState<S>() where S : IFSMState<T>
+        {
+            RemoveState(typeof(S));
+        }
+
+        public void RemoveStateAll(Type type)
+        {
+            typeTmps.Clear();
+            foreach (var item in type2State)
+            {
+                if (type.IsAssignableFrom(item.Key))
+                {
+                    typeTmps.Add(item.Key);
+                }
+            }
+
+            foreach (var item in typeTmps)
+            {
+                RemoveState(item);
+            }
+            typeTmps.Clear();
+        }
+
+        public void RemoveStateAll<S>()
+        {
+            RemoveStateAll(typeof(S));
+        }
+
+        public virtual void ChangeState(Type stateType)
         {
             if (stateType == currentState)
             {
@@ -53,12 +91,12 @@ namespace XMLib.FSM
             ChangeState(typeof(S));
         }
 
-        public void Update(T target, float deltaTime)
+        public virtual void Update(T target, float deltaTime)
         {
             CheckStateChange(target);
             if (currentState != null)
             {
-                this[currentState].Update(target, deltaTime);
+                type2State[currentState].Update(target, deltaTime);
                 CheckStateChange(target);
             }
         }
@@ -70,13 +108,13 @@ namespace XMLib.FSM
                 hasNextState = false;
                 if (currentState != null)
                 {
-                    this[currentState].Exit(target);
+                    type2State[currentState].Exit(target);
                 }
                 currentState = nextState;
                 nextState = null;
                 if (currentState != null)
                 {
-                    this[currentState].Enter(target);
+                    type2State[currentState].Enter(target);
                 }
             }
         }
