@@ -26,6 +26,16 @@ namespace XMLib.FSM
 
         protected List<Type> typeTmps = new List<Type>();
 
+        public virtual IFSMState<T> GetState(Type stateType)
+        {
+            return type2State.TryGetValue(stateType, out IFSMState<T> result) ? result : null;
+        }
+
+        public S GetState<S>() where S : class, IFSMState<T>
+        {
+            return GetState(typeof(S)) as S;
+        }
+
         public virtual void AddState(IFSMState<T> state)
         {
             type2State.Add(state.GetType(), state);
