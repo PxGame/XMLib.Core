@@ -38,11 +38,9 @@ namespace XMLib
     /// </summary>
     public interface IAppInitializer
     {
-        string Tag { get; }
+        string tag { get; }
 
-        void OnRegistServices(Application target);
-
-        void OnRegistGlobalServiceTypes(Application target, List<Type> serviceTypes);
+        void OnRegistServices(Application target, List<Type> serviceTypes);
     }
 
     /// <summary>
@@ -57,25 +55,24 @@ namespace XMLib
         public static UnityApplication unityApp { get; private set; }
         public static Action onInitialized { get; set; }
         public static Action onDisposed { get; set; }
-        private static IAppInitializer appInitializer { get; set; }
-        public static string Tag { get; private set; }
+        public static IAppInitializer initializer { get; private set; }
+        public static string tag { get; private set; }
 
-        public static void Initialize(LaunchMode launchMode = LaunchMode.Normal)
+        public static void Initialize(IAppInitializer init = null, LaunchMode mode = LaunchMode.Normal)
         {
             if (null != app)
             {
                 throw new RuntimeException("Application 已经创建");
             }
 
-            appInitializer = FindAppInitializer();
+            initializer = init ?? FindAppInitializer();
+            launchMode = mode;//启动模式
+            tag = initializer?.tag ?? UnityEngine.Application.productName;
 
-            App.launchMode = launchMode;//启动模式
+            SuperLog.Log($"初始化器类型[{initializer?.GetType().GetTypeName() ?? "无"}]，启动模式[{launchMode}]，标签[{tag}]");
 
-            Tag = appInitializer?.Tag ?? UnityEngine.Application.productName;
-
-            SuperLog.tag = Tag;
-
-            GameObject obj = new GameObject($"[{Tag}]App", typeof(UnityApplication));
+            SuperLog.tag = tag;
+            GameObject obj = new GameObject($"[{tag}]App", typeof(UnityApplication));
             GameObject.DontDestroyOnLoad(obj);
             unityApp = obj.GetComponent<UnityApplication>();
             unityApp.onDestroyed += OnDispose;
@@ -105,6 +102,11 @@ namespace XMLib
 
         private static IAppInitializer FindAppInitializer()
         {
+            if (initializer != null)
+            {
+                return initializer;
+            }
+
             using (var watcher = new TimeWatcher("查找初始化程序"))
             {
                 List<Type> types = AssemblyUtility.FindAllAssignable<IAppInitializer>();
@@ -129,15 +131,13 @@ namespace XMLib
             {
                 List<Type> serviceTypes = new List<Type>();
 
-                appInitializer?.OnRegistGlobalServiceTypes(target, serviceTypes);
-
-                //注册普通服务
+                //注册服务
                 launchStatus = LaunchStatus.TypeReging;
                 watcher.Start();
 
-                appInitializer?.OnRegistServices(target);
+                initializer?.OnRegistServices(target, serviceTypes);
 
-                watcher.End($"注册普通服务");
+                watcher.End($"注册服务");
                 launchStatus = LaunchStatus.TypeReged;
                 //=======================================
 
