@@ -40,7 +40,15 @@ namespace XMLib
     {
         string tag { get; }
 
-        void OnRegistServices(Application target, List<Type> serviceTypes);
+        void OnInitializing();
+
+        void OnRegistServices(Application target, List<Tuple<Type, Action<object>>> serviceTypes);
+
+        void OnInitialized();
+
+        void OnDisposing();
+
+        void OnDisposed();
     }
 
     /// <summary>
@@ -81,6 +89,8 @@ namespace XMLib
 
         private static IEnumerator _OnInitialize()
         {
+            initializer.OnInitializing();
+
             launchStatus = LaunchStatus.Initing;
             app = new Application();
             yield return InitializeService(app);
@@ -88,14 +98,21 @@ namespace XMLib
             launchStatus = LaunchStatus.Inited;
             onInitialized?.Invoke();
             onInitialized = null;
+
+            initializer?.OnInitialized();
         }
 
         private static void OnDispose()
         {
+            initializer?.OnDisposing();
+
             app.Flush();
             launchStatus = LaunchStatus.None;
             onDisposed?.Invoke();
             onDisposed = null;
+
+            initializer?.OnDisposed();
+
             app = null;
             unityApp = null;
         }
@@ -129,7 +146,7 @@ namespace XMLib
             //初始化基础服务
             using (TimeWatcher watcher = new TimeWatcher("服务初始化"))
             {
-                List<Type> serviceTypes = new List<Type>();
+                List<Tuple<Type, Action<object>>> serviceTypes = new List<Tuple<Type, Action<object>>>();
 
                 //注册服务
                 launchStatus = LaunchStatus.TypeReging;
@@ -149,8 +166,12 @@ namespace XMLib
                 foreach (var serviceType in serviceTypes)
                 {
                     watcher.Start();
-                    target.Singleton(serviceType);
-                    object obj = target.Make(serviceType);
+
+                    target.Singleton(serviceType.Item1)
+                        .OnAfterResolving((_, obj) => serviceType.Item2?.Invoke(obj))
+                        .OnRelease((_, obj) => serviceType.Item2?.Invoke(null));
+
+                    object obj = target.Make(serviceType.Item1);
                     if (obj is IServiceInitialize init)
                     {//需要初始化
                         initServices.Add(init);
@@ -159,7 +180,7 @@ namespace XMLib
                     {//需要后初始化
                         lateInitServices.Add(lateInit);
                     }
-                    watcher.End($"注册并创建 [{serviceType}] 服务");
+                    watcher.End($"注册并创建 [{serviceType.Item1}] 服务");
                 }
                 launchStatus = LaunchStatus.ServiceCreated;
                 //=========================================
