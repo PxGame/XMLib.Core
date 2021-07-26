@@ -15,7 +15,8 @@ namespace XMLib
 {
     public enum LaunchMode
     {
-        Normal
+        Normal,
+        Debug,
     }
 
     public enum LaunchStatus
