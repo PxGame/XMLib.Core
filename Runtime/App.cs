@@ -43,7 +43,7 @@ namespace XMLib
 
         void OnInitializing();
 
-        void OnRegistServices(Application target, List<Tuple<Type, Action<object>>> serviceTypes);
+        void OnRegistServices(Application target, List<(Type, Action<object>)> serviceTypes);
 
         void OnInitialized();
 
@@ -147,7 +147,7 @@ namespace XMLib
             //初始化基础服务
             using (TimeWatcher watcher = new TimeWatcher("服务初始化"))
             {
-                List<Tuple<Type, Action<object>>> serviceTypes = new List<Tuple<Type, Action<object>>>();
+                List<(Type, Action<object>)> serviceTypes = new List<(Type, Action<object>)>();
 
                 //注册服务
                 launchStatus = LaunchStatus.TypeReging;
@@ -164,15 +164,15 @@ namespace XMLib
                 List<IServiceInitialize> initServices = new List<IServiceInitialize>(serviceTypes.Count);
                 List<IServiceLateInitialize> lateInitServices = new List<IServiceLateInitialize>(serviceTypes.Count);
 
-                foreach (var serviceType in serviceTypes)
+                foreach (var (serviceType, onChanged) in serviceTypes)
                 {
                     watcher.Start();
 
-                    target.Singleton(serviceType.Item1)
-                        .OnAfterResolving((_, obj) => serviceType.Item2?.Invoke(obj))
-                        .OnRelease((_, obj) => serviceType.Item2?.Invoke(null));
+                    target.Singleton(serviceType)
+                        .OnAfterResolving((_, obj) => onChanged?.Invoke(obj))
+                        .OnRelease((_, obj) => onChanged?.Invoke(null));
 
-                    object obj = target.Make(serviceType.Item1);
+                    object obj = target.Make(serviceType);
                     if (obj is IServiceInitialize init)
                     {//需要初始化
                         initServices.Add(init);
@@ -181,7 +181,7 @@ namespace XMLib
                     {//需要后初始化
                         lateInitServices.Add(lateInit);
                     }
-                    watcher.End($"注册并创建 [{serviceType.Item1}] 服务");
+                    watcher.End($"注册并创建 [{serviceType}] 服务");
                 }
                 launchStatus = LaunchStatus.ServiceCreated;
                 //=========================================

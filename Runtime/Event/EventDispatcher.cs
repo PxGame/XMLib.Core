@@ -59,7 +59,7 @@ namespace XMLib
                 //注册
                 if (!_eventMapping.TryGetValue(handler.eventType, out handlers))
                 {
-                    handlers = new List<EventHandler>();
+                    handlers = ListPool<EventHandler>.Pop();
                     _eventMapping.Add(handler.eventType, handlers);
                 }
                 handlers.Add(handler);
@@ -69,7 +69,7 @@ namespace XMLib
                 {
                     if (!_groupMapping.TryGetValue(handler.group, out handlers))
                     {
-                        handlers = new List<EventHandler>();
+                        handlers = ListPool<EventHandler>.Pop();
                         _groupMapping.Add(handler.group, handlers);
                     }
                     handlers.Add(handler);
@@ -128,14 +128,14 @@ namespace XMLib
                 {
                     //拷贝一份,防止执行过程中修改,
                     //这样做可能出现执行中被移除的EventHandler仍然被执行,
-                    //可每次执行时查看handlers中是否存在当前准备执行的EventHandler,
-                    //但这样开销有点大,目前先不处理
-                    List<EventHandler> copyHandlers = new List<EventHandler>(handlers);
+                    List<EventHandler> copyHandlers = ListPool<EventHandler>.Pop();
+                    copyHandlers.AddRange(handlers);
                     foreach (var handler in copyHandlers)
                     {
                         currentHandler = handler;
                         InvokeHandler(currentHandler, args);
                     }
+                    ListPool<EventHandler>.Push(copyHandlers);
                 }
                 catch (Exception ex)
                 {
@@ -193,6 +193,8 @@ namespace XMLib
             {
                 ForgetHandler(handler, false, true);
             }
+
+            ListPool<EventHandler>.Push(handlers);
         }
 
         private void ForgetHandler(EventHandler target, bool removeEvent, bool removeGroup)
