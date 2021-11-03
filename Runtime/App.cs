@@ -469,6 +469,11 @@ namespace XMLib
             return app.Make<TService>(userParams);
         }
 
+        public static object Make(Type serviceType, params object[] userParams)
+        {
+            return app.Make(serviceType, userParams);
+        }
+
         public static bool CanMake<T>()
         {
             return app.CanMake<T>();
